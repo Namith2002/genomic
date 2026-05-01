@@ -1,0 +1,30 @@
+{
+  "feature_cols": [
+    "ref_enc",
+    "alt_enc",
+    "ref_A",
+    "ref_C",
+    "ref_G",
+    "ref_T",
+    "alt_A",
+    "alt_C",
+    "alt_G",
+    "alt_T",
+    "is_transition",
+    "ref_is_gc",
+    "alt_is_gc",
+    "purine_to_pyrimidine",
+    "pyrimidine_to_purine",
+    "ref_alt_product",
+    "allele_delta"
+  ],
+  "n_features": 17,
+  "accuracy": 0.735,
+  "f1": 0.3908,
+  "auc_roc": 0.578,
+  "models_used": [
+    "rf",
+    "gb",
+    "xgb"
+  ]
+}

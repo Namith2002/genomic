@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+python-multipart
+pandas
+numpy
+scikit-learn
+imbalanced-learn
+xgboost
+tensorflow
+pillow
+pydantic
+sqlalchemy
+tqdm
