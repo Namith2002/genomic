@@ -147,32 +147,107 @@ export default function Predictor() {
       )}
 
       {result && (
-        <div className={`result-box ${result.prediction === 'Benign' ? 'result-benign' : 'result-pathogenic'}`}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            {result.prediction === 'Benign' ? <CheckCircle size={32} color="var(--accent)" /> : <AlertTriangle size={32} color="var(--danger)" />}
-            <div>
-              <h3 style={{ color: result.prediction === 'Benign' ? 'var(--accent)' : 'var(--danger)' }}>
-                {result.prediction}
-              </h3>
-              <p style={{ color: 'var(--text-muted)' }}>Mutation Impact</p>
+        <div className="result-container" style={{ marginTop: '28px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Mutation Impact */}
+          <div className={`result-box ${result.prediction === 'Benign' ? 'result-benign' : 'result-pathogenic'}`}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              {result.prediction === 'Benign' ? <CheckCircle size={32} color="var(--accent)" /> : <AlertTriangle size={32} color="var(--danger)" />}
+              <div>
+                <h3 style={{ color: result.prediction === 'Benign' ? 'var(--accent)' : 'var(--danger)' }}>
+                  {result.prediction}
+                </h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Mutation Impact Prediction</p>
+              </div>
+            </div>
+            
+            <div style={{ marginTop: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '14px' }}>
+                <span style={{ fontWeight: 500 }}>Confidence Score</span>
+                <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{(result.confidence * 100).toFixed(2)}%</span>
+              </div>
+              <div className="progress-bar-container">
+                <div 
+                  className="progress-bar" 
+                  style={{ 
+                    width: `${result.confidence * 100}%`,
+                    background: result.prediction === 'Benign' ? 'var(--accent)' : 'var(--danger)'
+                  }}
+                ></div>
+              </div>
             </div>
           </div>
-          
-          <div style={{ marginTop: '16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <span style={{ fontWeight: 500 }}>Confidence Score</span>
-              <span>{(result.confidence * 100).toFixed(2)}%</span>
+
+          {/* Age Group Estimation */}
+          {result.age_prediction && (
+            <div className="glass-card" style={{ 
+              border: `1.5px solid ${result.age_prediction.color}44`,
+              background: `linear-gradient(135deg, rgba(30, 41, 59, 0.4) 0%, ${result.age_prediction.color}0d 100%)`,
+              padding: '20px',
+              animation: 'fadeIn 0.6s ease',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                {/* Glowing Circular Avatar */}
+                <div style={{
+                  width: '64px',
+                  height: '64px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: `${result.age_prediction.color}15`,
+                  border: `3px solid ${result.age_prediction.color}`,
+                  boxShadow: `0 0 16px ${result.age_prediction.color}33`,
+                  fontSize: '28px',
+                  flexShrink: 0
+                }}>
+                  {result.age_prediction.icon}
+                </div>
+                
+                <div>
+                  <span style={{ 
+                    fontSize: '11px', 
+                    fontWeight: 700, 
+                    textTransform: 'uppercase', 
+                    letterSpacing: '1.5px', 
+                    color: result.age_prediction.color 
+                  }}>
+                    Genomic Age Prediction
+                  </span>
+                  <h3 style={{ fontSize: '20px', margin: '4px 0 2px 0', color: '#f8fafc' }}>
+                    {result.age_prediction.label}
+                  </h3>
+                  <span style={{ 
+                    display: 'inline-block',
+                    fontSize: '12px', 
+                    fontWeight: 600, 
+                    color: result.age_prediction.color,
+                    background: `${result.age_prediction.color}22`,
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    border: `1px solid ${result.age_prediction.color}33`
+                  }}>
+                    Estimated Range: {result.age_prediction.range}
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ 
+                fontSize: '13px', 
+                color: 'var(--text-muted)', 
+                lineHeight: '1.6',
+                borderLeft: `3px solid ${result.age_prediction.color}`,
+                paddingLeft: '12px',
+                background: 'rgba(0, 0, 0, 0.1)',
+                padding: '10px 12px',
+                borderRadius: '0 8px 8px 0'
+              }}>
+                {result.age_prediction.description}
+              </div>
             </div>
-            <div className="progress-bar-container">
-              <div 
-                className="progress-bar" 
-                style={{ 
-                  width: `${result.confidence * 100}%`,
-                  background: result.prediction === 'Benign' ? 'var(--accent)' : 'var(--danger)'
-                }}
-              ></div>
-            </div>
-          </div>
+          )}
         </div>
       )}
 
