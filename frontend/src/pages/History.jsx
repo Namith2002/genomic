@@ -46,8 +46,9 @@ export default function History() {
               <tr>
                 <th>Mode</th>
                 <th>Input Data</th>
-                <th>Prediction</th>
+                <th>Mutation Prediction</th>
                 <th>Confidence</th>
+                <th>Genomic Age Prediction</th>
                 <th>Timestamp</th>
               </tr>
             </thead>
@@ -59,7 +60,7 @@ export default function History() {
                       {getModeIcon(item.mode)} {item.mode}
                     </span>
                   </td>
-                  <td style={{ fontWeight: 500 }}>{item.input_data}</td>
+                  <td style={{ fontWeight: 500, fontSize: '13px' }}>{item.input_data}</td>
                   <td>
                     <span style={{ 
                       display: 'inline-flex', 
@@ -73,7 +74,7 @@ export default function History() {
                   </td>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div className="progress-bar-container" style={{ width: '60px', height: '4px' }}>
+                      <div className="progress-bar-container" style={{ width: '50px', height: '4px' }}>
                         <div 
                           className="progress-bar" 
                           style={{ 
@@ -82,10 +83,27 @@ export default function History() {
                           }}
                         ></div>
                       </div>
-                      <span style={{ fontSize: '12px' }}>{(item.confidence * 100).toFixed(1)}%</span>
+                      <span style={{ fontSize: '11px' }}>{(item.confidence * 100).toFixed(0)}%</span>
                     </div>
                   </td>
-                  <td style={{ color: 'var(--text-muted)', fontSize: '14px' }}>
+                  <td>
+                    {item.age_prediction ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '18px' }}>{item.age_prediction.icon}</span>
+                        <div>
+                          <div style={{ fontSize: '12px', fontWeight: 600, color: item.age_prediction.color }}>
+                            {item.age_prediction.label}
+                          </div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                            {item.age_prediction.range}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>N/A</span>
+                    )}
+                  </td>
+                  <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
                     {new Date(item.timestamp).toLocaleString()}
                   </td>
                 </tr>

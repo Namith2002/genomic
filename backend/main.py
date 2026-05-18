@@ -81,6 +81,11 @@ def init_db():
             input_data TEXT,
             prediction TEXT,
             confidence REAL,
+            age_label TEXT,
+            age_range TEXT,
+            age_color TEXT,
+            age_icon TEXT,
+            age_description TEXT,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     ''')
@@ -109,109 +114,277 @@ except Exception as e:
 
 def predict_age_profile(ref: str, alt: str) -> dict:
     """
-    Predict genomic age profile / age category (Newborn, Young Person, Aged Person)
-    based on DNA mutation properties.
-    Certain transversion/transition ratios are highly correlated with age-associated somatic mutations.
-    - Transitions (especially C->T) are common signatures of aging (Aged Person).
-    - Certain purine/pyrimidine mismatches are neonatal/developmental (Newborn).
-    - Other balanced distributions represent normal/young somatic variants (Young Person).
+    Predict genomic age profile / age category based on comprehensive DNA mutation properties.
+    Uses multiple genomic features to determine age category:
+    - Transition vs transversion type
+    - Purine/pyrimidine changes
+    - GC content changes
+    - Allele encoding values
+    Returns one of 6 age categories with different icons, colors, and descriptions.
     """
     pair = (ref, alt)
+    ref_enc = ALLELE_MAP[ref]
+    alt_enc = ALLELE_MAP[alt]
+    
+    # Calculate mutation properties
+    is_transition = pair in TRANSITIONS
+    ref_is_purine = ref in PURINES
+    alt_is_purine = alt in PURINES
+    ref_is_gc = ref in GC_BASES
+    alt_is_gc = alt in GC_BASES
+    gc_change = alt_is_gc - ref_is_gc  # +1 (to GC), -1 (from GC), 0 (no change)
+    allele_distance = abs(ref_enc - alt_enc)
+    
+    # Compute age score (0-10 scale)
+    age_score = 0
+    
+    # High methylation transitions (aging signature)
     if pair == ('C', 'T') or pair == ('G', 'A'):
-        # Methylation-induced deamination, highly prevalent in older age groups
+        age_score += 4
+    
+    # GC-to-AT changes (neonatal development)
+    if gc_change == -1:
+        age_score -= 1.5
+    
+    # Large allele distance (early childhood changes)
+    if allele_distance >= 2:
+        age_score -= 0.5
+    
+    # Purine-to-Purine or Pyrimidine-to-Pyrimidine (conservative, adult)
+    if (ref_is_purine and alt_is_purine) or (not ref_is_purine and not alt_is_purine):
+        age_score += 0.5
+    
+    # Transversion characteristics
+    if not is_transition and allele_distance > 1:
+        age_score -= 0.3
+    
+    # Strong GC increase (adulthood replication)
+    if gc_change == 1 and ref_is_gc == False:
+        age_score += 1.5
+    
+    # Determine age category based on score
+    if age_score >= 3.5:
         return {
-            "label": "Aged Person",
-            "icon": "🧓",
-            "range": "60+ years",
-            "color": "#fb923c", # Orange
-            "description": "Variant characteristic of age-associated deamination patterns."
+            "label": "Aged Person (Senior)",
+            "icon": "👴",
+            "range": "65+ years",
+            "color": "#ef4444", # Red
+            "description": "High methylation deamination signature with aging-associated mutation pattern."
         }
-    elif pair in [('A', 'T'), ('T', 'A'), ('C', 'G'), ('G', 'C')]:
-        # Transversion signatures, often developmental/somatic in early childhood
+    elif age_score >= 2.0:
+        return {
+            "label": "Mature Adult",
+            "icon": "👨",
+            "range": "45-64 years",
+            "color": "#f97316", # Orange
+            "description": "Moderate accumulation of age-related somatic variants typical of middle age."
+        }
+    elif age_score >= 0.5:
+        return {
+            "label": "Young Adult",
+            "icon": "🧑",
+            "range": "18-44 years",
+            "color": "#10b981", # Green
+            "description": "Standard replication errors consistent with young adult somatic profiles."
+        }
+    elif age_score >= -1.0:
+        return {
+            "label": "Adolescent",
+            "icon": "👦",
+            "range": "3-17 years",
+            "color": "#06b6d4", # Cyan
+            "description": "Mixed somatic variants matching developmental and growth patterns."
+        }
+    elif age_score >= -2.5:
+        return {
+            "label": "Early Childhood",
+            "icon": "🧒",
+            "range": "1-2 years",
+            "color": "#8b5cf6", # Violet
+            "description": "Somatic density patterns aligns with early developmental genomic structure."
+        }
+    else:
         return {
             "label": "Newborn / Infant",
             "icon": "👶",
-            "range": "0-2 years",
+            "range": "0-12 months",
             "color": "#818cf8", # Indigo
-            "description": "Mutational signature frequently aligned with neonatal developmental profiles."
-        }
-    else:
-        # Standard replication error profiles
-        return {
-            "label": "Young Person",
-            "icon": "🧑",
-            "range": "3-59 years",
-            "color": "#10b981", # Accent Green
-            "description": "Replication-associated variant matching young adult somatic profiles."
+            "description": "Mutational signature characteristic of neonatal genomic development."
         }
 
 def predict_image_age_profile(filename: str, img_array: np.ndarray = None) -> dict:
     """
-    Heuristic age profile prediction based on average pixel intensity of the uploaded scan.
+    Heuristic age profile prediction based on multiple image analysis metrics.
+    Analyzes average pixel intensity, contrast, and distribution to predict genomic age.
+    Handles both normalized (0-1) and unnormalized (0-255) image data.
     """
     if img_array is not None:
+        # Calculate various image metrics
         mean_val = float(np.mean(img_array))
-        if mean_val < 80:
+        std_val = float(np.std(img_array))
+        max_val = float(np.max(img_array))
+        min_val = float(np.min(img_array))
+        
+        # Detect if image is normalized (0-1) or unnormalized (0-255)
+        is_normalized = max_val <= 1.5  # Normalized images have max <= 1
+        
+        # Normalize all metrics to 0-1 range for consistent calculation
+        if is_normalized:
+            intensity_norm = mean_val
+            contrast = (max_val - min_val) if max_val > min_val else 0.01
+            std_norm = std_val
+        else:
+            # Unnormalized (0-255 range)
+            intensity_norm = mean_val / 255.0
+            contrast = (max_val - min_val) / 255.0 if max_val > min_val else 0.01
+            std_norm = std_val / 255.0
+        
+        # Calculate age score using multi-factor analysis (0-10 scale)
+        age_score = 0
+        
+        # Factor 1: Mean intensity (higher intensity = older)
+        age_score += intensity_norm * 4.0  # 0-4 points
+        
+        # Factor 2: Contrast (high contrast = young development, low = old age)
+        age_score += (1.0 - contrast) * 2.0  # 0-2 points (inverted)
+        
+        # Factor 3: Standard deviation (high variation = developmental, low = stable adult)
+        age_score += (1.0 - std_norm) * 2.0  # 0-2 points (inverted)
+        
+        # Factor 4: Distribution skew (asymmetry in pixel distribution)
+        pixel_range = max_val - min_val
+        mid_point = (max_val + min_val) / 2.0
+        skew_factor = abs(mean_val - mid_point) / (pixel_range + 0.001) if pixel_range > 0 else 0
+        age_score += skew_factor * 2.0  # 0-2 points
+        
+        # Determine category based on composite score (0-10 scale)
+        if age_score >= 8.0:
             return {
-                "label": "Newborn / Infant",
-                "icon": "👶",
-                "range": "0-2 years",
-                "color": "#818cf8",
-                "description": "Somatic density aligns with neonatal genomic structure."
+                "label": "Aged Person (Senior)",
+                "icon": "👴",
+                "range": "65+ years",
+                "color": "#ef4444",
+                "description": "High-density accumulation of hyper-methylation with advanced age indicators."
             }
-        elif mean_val < 150:
+        elif age_score >= 6.5:
             return {
-                "label": "Young Person",
+                "label": "Mature Adult",
+                "icon": "👨",
+                "range": "45-64 years",
+                "color": "#f97316",
+                "description": "Moderate somatic density aligned with middle-age replication patterns."
+            }
+        elif age_score >= 5.0:
+            return {
+                "label": "Young Adult",
                 "icon": "🧑",
-                "range": "3-59 years",
+                "range": "18-44 years",
                 "color": "#10b981",
-                "description": "Standard somatic density matches young adult control profile."
+                "description": "Standard somatic density matches young adult genomic control profile."
+            }
+        elif age_score >= 3.5:
+            return {
+                "label": "Adolescent",
+                "icon": "👦",
+                "range": "3-17 years",
+                "color": "#06b6d4",
+                "description": "Mixed density patterns characteristic of developmental and growth phases."
+            }
+        elif age_score >= 2.0:
+            return {
+                "label": "Early Childhood",
+                "icon": "🧒",
+                "range": "1-2 years",
+                "color": "#8b5cf6",
+                "description": "Somatic density aligns with early developmental genomic structure."
             }
         else:
             return {
-                "label": "Aged Person",
-                "icon": "🧓",
-                "range": "60+ years",
-                "color": "#fb923c",
-                "description": "High accumulation of hyper-methylation indicators aligned with advanced age."
+                "label": "Newborn / Infant",
+                "icon": "👶",
+                "range": "0-12 months",
+                "color": "#818cf8",
+                "description": "Low-density pattern aligned with neonatal genomic development."
             }
-    # Fallback based on filename length/hash
+    
+    # Fallback based on filename analysis for when no image array available
     char_sum = sum(ord(c) for c in filename)
-    if char_sum % 3 == 0:
+    char_length = len(filename)
+    score = (char_sum % 100) / 100.0
+    
+    if score >= 0.85:
         return {
-            "label": "Newborn / Infant",
-            "icon": "👶",
-            "range": "0-2 years",
-            "color": "#818cf8",
-            "description": "Somatic density aligns with neonatal genomic structure."
+            "label": "Aged Person (Senior)",
+            "icon": "👴",
+            "range": "65+ years",
+            "color": "#ef4444",
+            "description": "High-density accumulation of hyper-methylation with advanced age indicators."
         }
-    elif char_sum % 3 == 1:
+    elif score >= 0.70:
         return {
-            "label": "Young Person",
+            "label": "Mature Adult",
+            "icon": "👨",
+            "range": "45-64 years",
+            "color": "#f97316",
+            "description": "Moderate somatic density aligned with middle-age replication patterns."
+        }
+    elif score >= 0.55:
+        return {
+            "label": "Young Adult",
             "icon": "🧑",
-            "range": "3-59 years",
+            "range": "18-44 years",
             "color": "#10b981",
-            "description": "Standard somatic density matches young adult control profile."
+            "description": "Standard somatic density matches young adult genomic control profile."
+        }
+    elif score >= 0.40:
+        return {
+            "label": "Adolescent",
+            "icon": "👦",
+            "range": "3-17 years",
+            "color": "#06b6d4",
+            "description": "Mixed density patterns characteristic of developmental and growth phases."
+        }
+    elif score >= 0.25:
+        return {
+            "label": "Early Childhood",
+            "icon": "🧒",
+            "range": "1-2 years",
+            "color": "#8b5cf6",
+            "description": "Somatic density aligns with early developmental genomic structure."
         }
     else:
         return {
-            "label": "Aged Person",
-            "icon": "🧓",
-            "range": "60+ years",
-            "color": "#fb923c",
-            "description": "High accumulation of hyper-methylation indicators aligned with advanced age."
+            "label": "Newborn / Infant",
+            "icon": "👶",
+            "range": "0-12 months",
+            "color": "#818cf8",
+            "description": "Low-density pattern aligned with neonatal genomic development."
         }
 
 class ManualPredictionRequest(BaseModel):
     reference: str
     alternate: str
 
-def save_prediction(mode: str, input_data: str, prediction: str, confidence: float):
+def save_prediction(mode: str, input_data: str, prediction: str, confidence: float, age_prediction: dict = None):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
+    
+    age_label = None
+    age_range = None
+    age_color = None
+    age_icon = None
+    age_description = None
+    
+    if age_prediction:
+        age_label = age_prediction.get('label')
+        age_range = age_prediction.get('range')
+        age_color = age_prediction.get('color')
+        age_icon = age_prediction.get('icon')
+        age_description = age_prediction.get('description')
+    
     cursor.execute(
-        "INSERT INTO predictions (mode, input_data, prediction, confidence) VALUES (?, ?, ?, ?)",
-        (mode, input_data, prediction, confidence)
+        "INSERT INTO predictions (mode, input_data, prediction, confidence, age_label, age_range, age_color, age_icon, age_description) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (mode, input_data, prediction, confidence, age_label, age_range, age_color, age_icon, age_description)
     )
     conn.commit()
     conn.close()
@@ -249,8 +422,8 @@ def predict_manual(request: ManualPredictionRequest):
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-    save_prediction("manual", f"{ref}→{alt}", pred, conf)
     age_pred = predict_age_profile(ref, alt)
+    save_prediction("manual", f"{ref}→{alt}", pred, conf, age_pred)
     return {"prediction": pred, "confidence": conf, "age_prediction": age_pred}
 
 @app.post("/predict/image")
@@ -278,9 +451,9 @@ async def predict_image(file: UploadFile = File(...)):
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
             
-    save_prediction("image", file.filename, pred, conf)
     if age_pred is None:
         age_pred = predict_image_age_profile(file.filename)
+    save_prediction("image", file.filename, pred, conf, age_pred)
     return {"prediction": pred, "confidence": conf, "age_prediction": age_pred}
 
 @app.post("/batch/predict")
@@ -323,13 +496,16 @@ async def batch_predict(file: UploadFile = File(...)):
                     pred = "Unknown"
                     conf = 0.0
                     
+            age_pred = predict_age_profile(ref, alt)
             results.append({
                 "ReferenceAllele": ref,
                 "AlternateAllele": alt,
                 "Prediction": pred,
-                "Confidence": conf
+                "Confidence": conf,
+                "Age": age_pred['label'],
+                "Range": age_pred['range']
             })
-            save_prediction("batch", f"{ref}→{alt}", pred, conf)
+            save_prediction("batch", f"{ref}→{alt}", pred, conf, age_pred)
             
         return {"results": results}
     except Exception as e:
@@ -339,17 +515,27 @@ async def batch_predict(file: UploadFile = File(...)):
 def get_history():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("SELECT mode, input_data, prediction, confidence, timestamp FROM predictions ORDER BY timestamp DESC LIMIT 50")
+    cursor.execute("SELECT mode, input_data, prediction, confidence, age_label, age_range, age_color, age_icon, age_description, timestamp FROM predictions ORDER BY timestamp DESC LIMIT 50")
     rows = cursor.fetchall()
     conn.close()
     
     history = []
     for row in rows:
+        age_prediction = None
+        if row[4]:  # if age_label exists
+            age_prediction = {
+                "label": row[4],
+                "range": row[5],
+                "color": row[6],
+                "icon": row[7],
+                "description": row[8]
+            }
         history.append({
             "mode": row[0],
             "input_data": row[1],
             "prediction": row[2],
             "confidence": row[3],
-            "timestamp": row[4]
+            "age_prediction": age_prediction,
+            "timestamp": row[9]
         })
     return history
